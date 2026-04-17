@@ -1,0 +1,13 @@
+[build]
+  command = "npm run build && cd site1 && npm install && npm run build && mkdir -p ../dist/aplicativo && cp -R dist/* ../dist/aplicativo/"
+  publish = "dist"
+
+[[redirects]]
+  from = "/aplicativo/*"
+  to = "/aplicativo/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

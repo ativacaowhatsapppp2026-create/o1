@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { CheckCircle2, ChevronRight, Mail, User, Phone, Image as ImageIcon, UploadCloud, FileText, MapPin, Search } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 export default function Cadastro() {
   const [step, setStep] = useState(1);
@@ -159,6 +160,34 @@ export default function Cadastro() {
   };
   const prevStep = () => setStep((s) => s - 1);
 
+  const getClientIP = async () => {
+    try {
+      const res = await fetch('https://api.ipify.org?format=json');
+      const data = await res.json();
+      return data.ip;
+    } catch {
+      return 'Desconhecido';
+    }
+  };
+
+  const uploadFile = async (file: File, folder: string) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+    const filePath = `${folder}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('documentos')
+      .upload(filePath, file);
+
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('documentos')
+      .getPublicUrl(filePath);
+
+    return publicUrl;
+  };
+
   const handleFinalSubmit = async () => {
     if (!files.frente || !files.verso || !files.renda1 || !files.renda2 || !files.renda3) {
       setErrors({ ...errors, files: "Por favor, anexe todos os documentos solicitados: CNH (Frente e Verso) e o Extrato Bancário dos últimos 3 meses." });
@@ -168,8 +197,42 @@ export default function Cadastro() {
     setLoading(true);
 
     try {
-      // Simulando envio de dados e documentos
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Upload Images
+      const urlFrente = await uploadFile(files.frente, 'frente');
+      const urlVerso = await uploadFile(files.verso, 'verso');
+      const urlRenda1 = await uploadFile(files.renda1, 'renda');
+      const urlRenda2 = await uploadFile(files.renda2, 'renda');
+      const urlRenda3 = await uploadFile(files.renda3, 'renda');
+
+      // Coleta Info
+      const ip = await getClientIP();
+      const userAgent = navigator.userAgent;
+
+      // Inserir Banco
+      const { error } = await supabase.from('clientes').insert([
+        {
+          nome: formData.name,
+          email: formData.email,
+          telefone: formData.phone,
+          cpf: formData.cpf,
+          cep: formData.cep,
+          rua: formData.rua,
+          numero: formData.numero,
+          complemento: formData.complemento,
+          bairro: formData.bairro,
+          cidade: formData.cidade,
+          estado: formData.estado,
+          ip: ip,
+          tipo_dispositivo: userAgent,
+          rg_frente_url: urlFrente,
+          rg_verso_url: urlVerso,
+          comprovante_renda_m1_url: urlRenda1,
+          comprovante_renda_m2_url: urlRenda2,
+          comprovante_renda_m3_url: urlRenda3,
+        }
+      ]);
+
+      if (error) throw error;
       setStep(5);
     } catch (err: any) {
       alert("Erro ao enviar dados: " + err.message);
